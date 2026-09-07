@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>目標カウントダウン</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --card: #1a1d24;
+    --accent: #6ee7b7;
+    --text: #eef2f6;
+    --sub: #9aa4b2;
+    --danger: #f87171;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+    color: var(--text);
+    padding: 24px 16px 60px;
+  }
+  .wrap { max-width: 480px; margin: 0 auto; }
+  h1 {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0 0 18px;
+    text-align: center;
+  }
+  .form-card {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 18px;
+    margin-bottom: 24px;
+  }
+  input[type="text"], input[type="date"] {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid #2c313c;
+    background: #12141a;
+    color: var(--text);
+    font-size: 15px;
+    margin-bottom: 10px;
+  }
+  input::placeholder { color: #5a6270; }
+  button.add {
+    width: 100%;
+    padding: 12px;
+    border-radius: 10px;
+    border: none;
+    background: var(--accent);
+    color: #0f1115;
+    font-weight: 700;
+    font-size: 15px;
+    cursor: pointer;
+  }
+  button.add:active { transform: scale(0.98); }
+
+  .goal {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 18px;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border: 1px solid rgba(110,231,183,0.15);
+  }
+  .goal.past { border-color: rgba(248,113,113,0.25); }
+  .goal-info { min-width: 0; flex: 1; }
+  .goal-name {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    word-break: break-word;
+  }
+  .goal-date { font-size: 12px; color: var(--sub); }
+  .goal-days {
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .goal-days .num { font-size: 30px; font-weight: 800; color: var(--accent); line-height: 1; }
+  .goal-days .num.past { color: var(--danger); }
+  .goal-days .lbl { font-size: 11px; color: var(--sub); margin-top: 2px; }
+  .del-btn {
+    background: none;
+    border: none;
+    color: #5a6270;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 4px 6px;
+    line-height: 1;
+  }
+  .del-btn:hover { color: var(--danger); }
+  .goal-row { display: flex; align-items: center; gap: 8px; }
+  .empty { text-align: center; color: var(--sub); font-size: 14px; padding: 20px 0; }
+  .loading { text-align: center; color: var(--sub); font-size: 14px; padding: 20px 0; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>目標カウントダウン</h1>
+
+    <div class="form-card">
+      <input type="text" id="goalName" placeholder="目標名(例: 危険物乙4 試験日)">
+      <input type="date" id="goalDate">
+      <button class="add" onclick="addGoal()">目標を追加</button>
+    </div>
+
+    <div id="goalList"><div class="loading">読み込み中...</div></div>
+  </div>
+
+<script>
+let goals = [];
+
+function todayMidnight() {
+  const d = new Date();
+  d.setHours(0,0,0,0);
+  return d;
+}
+
+function daysDiff(dateStr) {
+  const target = new Date(dateStr + 'T00:00:00');
+  const diffMs = target - todayMidnight();
+  return Math.round(diffMs / (1000 * 60 * 60 * 24));
+}
+
+function formatDate(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
+}
+
+async function loadGoals() {
+  try {
+    const res = await window.storage.get('goals', false);
+    goals = res ? JSON.parse(res.value) : [];
+  } catch (e) {
+    goals = [];
+  }
+  render();
+}
+
+async function saveGoals() {
+  try {
+    await window.storage.set('goals', JSON.stringify(goals), false);
+  } catch (e) {
+    console.error('保存に失敗しました', e);
+  }
+}
+
+function addGoal() {
+  const nameEl = document.getElementById('goalName');
+  const dateEl = document.getElementById('goalDate');
+  if (!dateEl.value) return;
+
+  goals.push({
+    id: Date.now().toString(),
+    name: nameEl.value.trim() || '目標',
+    date: dateEl.value
+  });
+
+  nameEl.value = '';
+  dateEl.value = '';
+
+  goals.sort((a, b) => a.date.localeCompare(b.date));
+  saveGoals();
+  render();
+}
+
+function removeGoal(id) {
+  goals = goals.filter(g => g.id !== id);
+  saveGoals();
+  render();
+}
+
+function render() {
+  const listEl = document.getElementById('goalList');
+
+  if (goals.length === 0) {
+    listEl.innerHTML = '<div class="empty">まだ目標がありません。上のフォームから追加してください。</div>';
+    return;
+  }
+
+  listEl.innerHTML = goals.map(g => {
+    const diff = daysDiff(g.date);
+    let numText, lblText, numClass = '', cardClass = '';
+    if (diff > 0) {
+      numText = diff;
+      lblText = '日後';
+    } else if (diff === 0) {
+      numText = '当日';
+      lblText = '今日です';
+    } else {
+      numText = Math.abs(diff);
+      lblText = '日前(経過)';
+      numClass = 'past';
+      cardClass = 'past';
+    }
+    return `
+      <div class="goal ${cardClass}">
+        <div class="goal-info">
+          <div class="goal-name">${escapeHtml(g.name)}</div>
+          <div class="goal-date">${formatDate(g.date)}</div>
+        </div>
+        <div class="goal-row">
+          <div class="goal-days">
+            <div class="num ${numClass}">${numText}</div>
+            <div class="lbl">${lblText}</div>
+          </div>
+          <button class="del-btn" onclick="removeGoal('${g.id}')">✕</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+document.getElementById('goalName').addEventListener('keydown', e => { if (e.key === 'Enter') addGoal(); });
+document.getElementById('goalDate').addEventListener('keydown', e => { if (e.key === 'Enter') addGoal(); });
+
+loadGoals();
+</script>
+</body>
+</html>
