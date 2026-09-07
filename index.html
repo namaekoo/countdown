@@ -100,6 +100,48 @@
   .goal-row { display: flex; align-items: center; gap: 8px; }
   .empty { text-align: center; color: var(--sub); font-size: 14px; padding: 20px 0; }
   .loading { text-align: center; color: var(--sub); font-size: 14px; padding: 20px 0; }
+
+  .sync-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 18px;
+  }
+  .sync-btn {
+    flex: 1;
+    padding: 10px;
+    border-radius: 10px;
+    border: 1px solid #2c313c;
+    background: var(--card);
+    color: var(--sub);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .sync-btn:active { transform: scale(0.98); }
+  .sync-msg {
+    text-align: center;
+    font-size: 12px;
+    color: var(--accent);
+    margin: -10px 0 16px;
+    min-height: 14px;
+  }
+  .import-box {
+    display: none;
+    margin-bottom: 18px;
+  }
+  .import-box.show { display: block; }
+  textarea#importText {
+    width: 100%;
+    height: 90px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid #2c313c;
+    background: #12141a;
+    color: var(--text);
+    font-size: 13px;
+    margin-bottom: 8px;
+    resize: none;
+  }
 </style>
 </head>
 <body>
@@ -110,6 +152,17 @@
       <input type="text" id="goalName" placeholder="目標名(例: 危険物乙4 試験日)">
       <input type="date" id="goalDate">
       <button class="add" onclick="addGoal()">目標を追加</button>
+    </div>
+
+    <div class="sync-bar">
+      <button class="sync-btn" onclick="exportData()">データをコピー</button>
+      <button class="sync-btn" onclick="toggleImport()">データを貼り付け</button>
+    </div>
+    <div class="sync-msg" id="syncMsg"></div>
+
+    <div class="import-box" id="importBox">
+      <textarea id="importText" placeholder="他の端末でコピーしたデータをここに貼り付け"></textarea>
+      <button class="add" onclick="importData()">読み込む</button>
     </div>
 
     <div id="goalList"><div class="loading">読み込み中...</div></div>
@@ -223,6 +276,57 @@ function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
+}
+
+function showSyncMsg(text) {
+  const el = document.getElementById('syncMsg');
+  el.textContent = text;
+  setTimeout(() => { el.textContent = ''; }, 3000);
+}
+
+function exportData() {
+  const text = JSON.stringify(goals);
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      showSyncMsg('コピーしました。他の端末の「データを貼り付け」に貼ってください');
+    }).catch(() => {
+      fallbackExport(text);
+    });
+  } else {
+    fallbackExport(text);
+  }
+}
+
+function fallbackExport(text) {
+  const box = document.getElementById('importBox');
+  const area = document.getElementById('importText');
+  box.classList.add('show');
+  area.value = text;
+  area.focus();
+  area.select();
+  showSyncMsg('下のテキストを長押しして手動でコピーしてください');
+}
+
+function toggleImport() {
+  document.getElementById('importBox').classList.toggle('show');
+}
+
+function importData() {
+  const raw = document.getElementById('importText').value.trim();
+  if (!raw) return;
+  try {
+    const imported = JSON.parse(raw);
+    if (!Array.isArray(imported)) throw new Error('invalid');
+    goals = imported;
+    goals.sort((a, b) => a.date.localeCompare(b.date));
+    saveGoals();
+    render();
+    document.getElementById('importText').value = '';
+    document.getElementById('importBox').classList.remove('show');
+    showSyncMsg('読み込みました');
+  } catch (e) {
+    showSyncMsg('データの形式が正しくありません');
+  }
 }
 
 document.getElementById('goalName').addEventListener('keydown', e => { if (e.key === 'Enter') addGoal(); });
