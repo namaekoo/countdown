@@ -135,19 +135,19 @@ function formatDate(dateStr) {
   return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
 }
 
-async function loadGoals() {
+function loadGoals() {
   try {
-    const res = await window.storage.get('goals', false);
-    goals = res ? JSON.parse(res.value) : [];
+    const raw = localStorage.getItem('countdown_goals');
+    goals = raw ? JSON.parse(raw) : [];
   } catch (e) {
     goals = [];
   }
   render();
 }
 
-async function saveGoals() {
+function saveGoals() {
   try {
-    await window.storage.set('goals', JSON.stringify(goals), false);
+    localStorage.setItem('countdown_goals', JSON.stringify(goals));
   } catch (e) {
     console.error('保存に失敗しました', e);
   }
